@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de Produtos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #333;
+        }
+        header {
+            background: #f8f9fa;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .logo {
+            max-height: 60px;
+        }
+        .actions {
+            display: flex;
+            gap: 15px;
+        }
+        .actions input,
+        .actions button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .actions input {
+            background-color: #e9ecef;
+            color: #555;
+        }
+        .actions button {
+            background-color: #2575fc;
+            color: white;
+        }
+        .actions button:hover {
+            background-color: #1a63db;
+        }
+        .catalog {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            margin: 0 auto;
+            max-width: 1200px;
+        }
+        .product {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0px 8px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .product:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.15);
+        }
+        .product img {
+            width: 100%;
+            height: auto;
+            max-height: 200px;
+            object-fit: cover;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .product-description {
+            padding: 10px 15px;
+            text-align: center;
+        }
+        .product-description h2 {
+            font-size: 16px;
+            margin: 5px 0 10px;
+            color: #444;
+        }
+        .product-description p {
+            font-size: 13px;
+            margin: 3px 0;
+            color: #666;
+        }
+        footer {
+            background-color: #f8f9fa;
+            text-align: center;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0px -4px 6px rgba(0, 0, 0, 0.1);
+        }
+        footer p {
+            margin: 0;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+    <script>
+        let products = [];
+
+        function importExcel(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                products = XLSX.utils.sheet_to_json(sheet);
+
+                const catalog = document.querySelector(".catalog");
+                catalog.innerHTML = "";
+
+                products.forEach(product => {
+                    const { Nome, Código, Quantidade, Valor, Imagem } = product;
+
+                    const productDiv = document.createElement("div");
+                    productDiv.classList.add("product");
+
+                    // Usando imagem do Excel ou fallback para placeholder
+                    const imageUrl = Imagem || 'https://via.placeholder.com/250';
+
+                    productDiv.innerHTML = ` 
+                        <img src="${imageUrl}" alt="${Nome}">
+                        <div class="product-description">
+                            <h2>${Nome}</h2>
+                            <p><strong>Código:</strong> ${Código}</p>
+                            <p><strong>Quantidade:</strong> ${Quantidade}</p>
+                            <p><strong>Valor:</strong> R$ ${Valor}</p>
+                        </div>
+                    `;
+
+                    catalog.appendChild(productDiv);
+                });
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const margin = 10;
+            const productWidth = (pageWidth - 4 * margin) / 3; // Largura de 3 colunas
+            const productHeight = 100; // Altura para cada produto
+            const spacingBetweenProducts = 30; // Espaçamento entre produtos
+
+            let y = 50; // Posição inicial na página
+
+            if (products.length === 0) {
+                alert("Nenhum produto carregado. Por favor, envie um arquivo Excel primeiro.");
+                return;
+            }
+
+            // Cabeçalho
+            pdf.setFillColor(37, 117, 252); // Azul
+            pdf.rect(0, 0, pageWidth, 40, 'F'); // Fundo azul no cabeçalho
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(22);
+            pdf.setTextColor(255, 255, 255); // Texto branco
+            pdf.text("Catálogo de produtos", margin, 20);
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(10);
+            pdf.text(
+                "Explore a nova coleção com os melhores preços e qualidade.",
+                margin,
+                30,
+                { maxWidth: pageWidth - 2 * margin }
+            );
+
+            pdf.setTextColor(0, 0, 0); // Retornar texto para cor preta
+
+            const filteredProducts = products.filter(product => product.Nome);
+
+            for (let i = 0; i < filteredProducts.length; i++) {
+                const product = filteredProducts[i];
+                const { Nome, Código, Quantidade, Valor, Imagem } = product;
+
+                const column = i % 3; // Coluna atual (0, 1, 2)
+                const row = Math.floor(i / 3); // Linha atual
+                const x = margin + column * (productWidth + margin); // Posição X
+                const rowHeight = row * (productHeight + spacingBetweenProducts);
+
+                // Adicionar nova página, se necessário
+                if (y + rowHeight + productHeight > 280) {
+                    pdf.addPage();
+                    y = 50;
+                }
+
+                // Exibir imagem ou mensagem de "imagem indisponível"
+                const imageY = y + rowHeight;
+                try {
+                    const imageUrl = Imagem || 'https://via.placeholder.com/150'; // Fallback
+                    const convertedImage = await convertToJPEG(imageUrl);
+                    if (convertedImage) {
+                        pdf.addImage(convertedImage, "JPEG", x, imageY, productWidth, 40); // Imagem do produto
+                    } else {
+                        pdf.setFont("helvetica", "italic");
+                        pdf.setFontSize(10);
+                        pdf.text("Imagem indisponível", x, imageY + 20);
+                    }
+                } catch (err) {
+                    console.warn("Erro ao carregar imagem:", err);
+                    pdf.setFont("helvetica", "italic");
+                    pdf.setFontSize(10);
+                    pdf.text("Imagem indisponível", x, imageY + 20);
+                }
+
+                // Linha divisória azul abaixo da imagem
+                const lineY = imageY + 45; // Posição da linha
+                pdf.setDrawColor(37, 117, 252); // Azul
+                pdf.setLineWidth(0.5);
+                pdf.line(x, lineY, x + productWidth, lineY);
+
+                // Descrição do produto
+                let textY = lineY + 5;
+
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(10);
+                pdf.text(Nome || "Nome do Produto", x, textY);
+                textY += 5;
+
+                pdf.setFont("helvetica", "normal");
+                pdf.setFontSize(9);
+                pdf.text(`Código: ${Código || ""}`, x, textY);
+                textY += 5;
+                pdf.text(`Quantidade: ${Quantidade || ""}`, x, textY);
+                textY += 5;
+
+                // Preço destacado em azul
+                pdf.setFont("helvetica", "bold");
+                pdf.setTextColor(37, 117, 252); // Azul
+                pdf.text(`Preço: R$ ${Valor || ""}`, x, textY);
+                pdf.setTextColor(0, 0, 0); // Retornar ao preto
+            }
+
+            // Rodapé com número da página
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(10);
+            pdf.setTextColor(37, 117, 252); // Azul
+            pdf.text(`${pdf.internal.getNumberOfPages()} PAGE`, pageWidth - 30, 290);
+
+            pdf.save("catalogo-personalizado.pdf");
+        }
+
+        // Função para converter imagens GIF para JPEG
+        async function convertToJPEG(imageUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = "Anonymous"; // Para evitar problemas de CORS
+                img.onload = () => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, img.width, img.height);
+                    resolve(canvas.toDataURL("image/jpeg"));
+                };
+                img.onerror = () => {
+                    console.warn("Erro ao carregar a imagem:", imageUrl);
+                    resolve(null);
+                };
+                img.src = imageUrl;
+            });
+        }
+    </script>
+</head>
+<body>
+    <header>
+        <img src="./Logo-Recuperado.png" alt="Logo da Empresa" class="logo">
+        <div class="actions">
+            <input type="file" accept=".xlsx, .xls" onchange="importExcel(event)">
+            <button onclick="downloadPDF()">Baixar PDF</button>
+        </div>
+    </header>
+    <main class="catalog">
+        <!-- Produtos carregados dinamicamente -->
+    </main>
+    <footer>
+        <p>© 2025 XHIMPORT. Todos os direitos reservados.</p>
+    </footer>
+</body>
+</html>
